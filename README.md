@@ -7,5 +7,4 @@ List of resources:
 * `black` `20.8b1` dist-info folder
 * `jedi` compiled subprocess `__main__.py` patched version
 * NSIS files and plugins to build the installer with a context menu entry that can be used with `pynsist`
-* `rtree` 0.9.4 wheel
 * `tkinter` binaries and files
