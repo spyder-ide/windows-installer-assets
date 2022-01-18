@@ -27,6 +27,7 @@ SetCompressor lzma
 [% endif %]
 !include MultiUser.nsh
 !include FileFunc.nsh
+!include 'LogicLib.nsh'
 
 [% block modernui %]
 ; Modern UI installer stuff
@@ -37,6 +38,7 @@ SetCompressor lzma
 
 ; UI pages
 [% block ui_pages %]
+!define MUI_PAGE_CUSTOMFUNCTION_PRE validate_pre_install
 !insertmacro MUI_PAGE_WELCOME
 [% if license_file %]
 !insertmacro MUI_PAGE_LICENSE [[license_file]]
@@ -54,6 +56,7 @@ OutFile "${INSTALLER_NAME}"
 ShowInstDetails show
 
 Var cmdLineInstallDir
+Var uninstallPreviousInstallation
 
 Section -SETTINGS
   SetOutPath "$INSTDIR"
@@ -233,6 +236,52 @@ SectionEnd
 [% endblock sections %]
 
 ; Functions
+
+Function trim_quotes
+Exch $R0
+Push $R1
+
+  StrCpy $R1 $R0 1
+  StrCmp $R1 `"` 0 +2
+    StrCpy $R0 $R0 `` 1
+  StrCpy $R1 $R0 1 -1
+  StrCmp $R1 `"` 0 +2
+    StrCpy $R0 $R0 -1
+
+Pop $R1
+Exch $R0
+FunctionEnd
+
+!macro _TrimQuotes Input Output
+  Push `${Input}`
+  Call trim_quotes
+  Pop ${Output}
+!macroend
+!define TrimQuotes `!insertmacro _TrimQuotes`
+
+Function validate_pre_install
+  SetRegView [[ib.py_bitness]]
+  ; Check to see if already installed
+  ReadRegStr $uninstallPreviousInstallation HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
+                                              "UninstallString"
+  ${If} $uninstallPreviousInstallation == ""
+    ReadRegStr $uninstallPreviousInstallation HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
+                                              "UninstallString"
+  ${EndIf}
+
+  ; Remove quotes
+  ${TrimQuotes} $uninstallPreviousInstallation $uninstallPreviousInstallation
+
+  IfFileExists $uninstallPreviousInstallation Installed NotInstalled
+  Installed:
+    MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is already installed. Uninstall the existing version?" \
+                                            /SD IDYES IDYES UninstallPreviousInstallation IDNO Quit
+  UninstallPreviousInstallation:
+    ExecWait $uninstallPreviousInstallation
+  Quit:
+    Quit
+  NotInstalled:
+FunctionEnd
 
 Function .onMouseOverSection
     ; Find which section the mouse is over, and set the corresponding description.
