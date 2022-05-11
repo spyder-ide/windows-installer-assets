@@ -8,3 +8,4 @@ List of resources:
 * NSIS files and plugins to build the installer with a context menu entry that can be used with `pynsist`
 * `tkinter` binaries and files
 * `pylint` `modify_sys_path` funtion from `__init__.py` modification
+* `micromamba` executable version `0.23.0`
