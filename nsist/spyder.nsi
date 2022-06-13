@@ -46,6 +46,9 @@ SetCompressor lzma
 !insertmacro MULTIUSER_PAGE_INSTALLMODE
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
+!define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN_TEXT "Start Spyder"
+!define MUI_FINISHPAGE_RUN_FUNCTION "LaunchLink"
 !insertmacro MUI_PAGE_FINISH
 [% endblock ui_pages %]
 !insertmacro MUI_LANGUAGE "English"
@@ -275,12 +278,22 @@ Function validate_pre_install
   IfFileExists $uninstallPreviousInstallation Installed NotInstalled
   Installed:
     MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is already installed. Uninstall the existing version?" \
-                                            /SD IDYES IDYES UninstallPreviousInstallation IDNO Quit
+                                            /SD IDYES IDYES UninstallPreviousInstallation IDNO NoUninstall
   UninstallPreviousInstallation:
-    ExecWait $uninstallPreviousInstallation
-  Quit:
-    Quit
+    ExecWait '"$uninstallPreviousInstallation" _?=$INSTDIR' $0
+    Delete "$uninstallPreviousInstallation" ; Delete the uninstaller
+	  RMDir "$INSTDIR" ; Try to delete $InstDir
+    ${If}${Cmd}  $0 <> 0
+		MessageBox MB_YESNO|MB_ICONSTOP "Failed to uninstall, continue anyway?" /SD IDYES IDYES +2
+			Abort
+	  ${EndIf}
+  NoUninstall:
+
   NotInstalled:
+FunctionEnd
+
+Function LaunchLink
+ ExecShell "" "$SMPROGRAMS\Spyder.lnk"
 FunctionEnd
 
 Function .onMouseOverSection
