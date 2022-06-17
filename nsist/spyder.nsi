@@ -29,6 +29,7 @@ SetCompressor lzma
 !include FileFunc.nsh
 !include 'LogicLib.nsh'
 
+
 [% block modernui %]
 ; Modern UI installer stuff
 !include "MUI2.nsh"
@@ -38,6 +39,7 @@ SetCompressor lzma
 
 ; UI pages
 [% block ui_pages %]
+;!define MUI_PAGE_CUSTOMFUNCTION_RUN validate_running
 !define MUI_PAGE_CUSTOMFUNCTION_PRE validate_pre_install
 !insertmacro MUI_PAGE_WELCOME
 [% if license_file %]
@@ -262,6 +264,14 @@ FunctionEnd
 !macroend
 !define TrimQuotes `!insertmacro _TrimQuotes`
 
+Function validate_running
+  FindProcDLL::FindProc "${PRODUCT_NAME}.exe"
+  IntCmp $R0 1 0 notRunning
+    MessageBox MB_OK|MB_ICONEXCLAMATION "${PRODUCT_NAME} is running. Please close it first" /SD IDOK
+    Abort
+  notRunning:
+FunctionEnd
+
 Function validate_pre_install
   SetRegView [[ib.py_bitness]]
   ; Check to see if already installed
@@ -280,20 +290,18 @@ Function validate_pre_install
     MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is already installed. Uninstall the existing version?" \
                                             /SD IDYES IDYES UninstallPreviousInstallation IDNO NoUninstall
   UninstallPreviousInstallation:
-    ExecWait '"$uninstallPreviousInstallation" _?=$INSTDIR' $0
-    Delete "$uninstallPreviousInstallation" ; Delete the uninstaller
-	  RMDir "$INSTDIR" ; Try to delete $InstDir
-    ${If}${Cmd}  $0 <> 0
+    Banner::show /set 76 "Please wait while uninstalling..." " "
+    ExecWait '"$uninstallPreviousInstallation" /S _?=$INSTDIR'
+    Banner::destroy
+    ${If} $0 <> 0
 		MessageBox MB_YESNO|MB_ICONSTOP "Failed to uninstall, continue anyway?" /SD IDYES IDYES +2
 			Abort
 	  ${EndIf}
+    GoTo NotInstalled
   NoUninstall:
-
+    Quit
+      
   NotInstalled:
-FunctionEnd
-
-Function LaunchLink
- ExecShell "" "$SMPROGRAMS\Spyder.lnk"
 FunctionEnd
 
 Function .onMouseOverSection
@@ -311,23 +319,29 @@ FunctionEnd
 Function .onInit
   ; Multiuser.nsh breaks /D command line parameter. Parse /INSTDIR instead.
   ; Cribbing from https://nsis-dev.github.io/NSIS-Forums/html/t-299280.html
+  call validate_running
   ${GetParameters} $0
   ClearErrors
   ${GetOptions} '$0' "/INSTDIR=" $1
   IfErrors +2  ; Error means flag not found
     StrCpy $cmdLineInstallDir $1
   ClearErrors
-
+  
   !insertmacro MULTIUSER_INIT
 
   ; If cmd line included /INSTDIR, override the install dir set by MultiUser
   StrCmp $cmdLineInstallDir "" +2
-    StrCpy $INSTDIR $cmdLineInstallDir
+    StrCpy $INSTDIR $cmdLineInstallDir  
 FunctionEnd
 
 Function un.onInit
   !insertmacro MULTIUSER_UNINIT
 FunctionEnd
+
+Function LaunchLink
+ ExecShell  "" "$SMPROGRAMS\Spyder.lnk"
+FunctionEnd
+
 
 [% if ib.py_bitness == 64 %]
 Function correct_prog_files
