@@ -39,7 +39,6 @@ SetCompressor lzma
 
 ; UI pages
 [% block ui_pages %]
-;!define MUI_PAGE_CUSTOMFUNCTION_RUN validate_running
 !define MUI_PAGE_CUSTOMFUNCTION_PRE validate_pre_install
 !insertmacro MUI_PAGE_WELCOME
 [% if license_file %]
@@ -264,15 +263,23 @@ FunctionEnd
 !macroend
 !define TrimQuotes `!insertmacro _TrimQuotes`
 
-Function validate_running
-  FindProcDLL::FindProc "${PRODUCT_NAME}.exe"
-  IntCmp $R0 1 0 notRunning
-    MessageBox MB_OK|MB_ICONEXCLAMATION "${PRODUCT_NAME} is running. Please close it first" /SD IDOK
-    Abort
-  notRunning:
-FunctionEnd
 
 Function validate_pre_install
+
+  FindWindow $0 "" "${PRODUCT_NAME}"
+  IntCmp $0 0 notRunning
+    MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is running. Please close it first. Close ${PRODUCT_NAME}?" \
+                                            /SD IDYES IDYES Confirm IDNO NoClose
+                                            Confirm:
+                                              MessageBox MB_YESNO|MB_ICONINFORMATION "Are you sure you are done with running ${PRODUCT_NAME}? It is recommended to save all changes first." \
+                                                                                      /SD IDYES IDYES CloseSpyder IDNO NoClose
+                                              CloseSpyder:
+                                                exec '"$sysdir\cmd.exe" /c "taskkill /FI "WINDOWTITLE eq Spyder" /F"'
+                                                goto notRunning
+                                            NoClose:
+                                              Quit
+  notRunning:
+
   SetRegView [[ib.py_bitness]]
   ; Check to see if already installed
   ReadRegStr $uninstallPreviousInstallation HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
@@ -319,7 +326,6 @@ FunctionEnd
 Function .onInit
   ; Multiuser.nsh breaks /D command line parameter. Parse /INSTDIR instead.
   ; Cribbing from https://nsis-dev.github.io/NSIS-Forums/html/t-299280.html
-  call validate_running
   ${GetParameters} $0
   ClearErrors
   ${GetOptions} '$0' "/INSTDIR=" $1
