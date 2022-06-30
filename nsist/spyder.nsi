@@ -268,10 +268,10 @@ Function validate_pre_install
 
   FindWindow $0 "" "${PRODUCT_NAME}"
   IntCmp $0 0 notRunning
-    MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is running. Please close it first. Close ${PRODUCT_NAME}?" \
+    MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is running. You will need to close it first to proceed. Do you want to close ${PRODUCT_NAME} now?" \
                                             /SD IDYES IDYES Confirm IDNO NoClose
                                             Confirm:
-                                              MessageBox MB_YESNO|MB_ICONINFORMATION "Are you sure you are done with running ${PRODUCT_NAME}? It is recommended to save all changes first." \
+                                              MessageBox MB_YESNO|MB_ICONINFORMATION "All unsaved files and changes will be lost. All ${PRODUCT_NAME} running processes will stop. Are you sure you are want to close ${PRODUCT_NAME}?" \
                                                                                       /SD IDYES IDYES CloseSpyder IDNO NoClose
                                               CloseSpyder:
                                                 exec '"$sysdir\cmd.exe" /c "taskkill /FI "WINDOWTITLE eq Spyder" /F"'
