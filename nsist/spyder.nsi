@@ -274,7 +274,7 @@ Function validate_pre_install
                                               MessageBox MB_YESNO|MB_ICONINFORMATION "All unsaved files and changes will be lost. All ${PRODUCT_NAME} running processes will stop. Are you sure you are want to close ${PRODUCT_NAME}?" \
                                                                                       /SD IDYES IDYES CloseSpyder IDNO NoClose
                                               CloseSpyder:
-                                                exec '"$sysdir\cmd.exe" /c "taskkill /FI "WINDOWTITLE eq Spyder" /F"'
+                                                nsExec::Exec 'TaskKill /FI "WINDOWTITLE eq Spyder" /F'
                                                 goto notRunning
                                             NoClose:
                                               Quit
@@ -332,12 +332,12 @@ Function .onInit
   IfErrors +2  ; Error means flag not found
     StrCpy $cmdLineInstallDir $1
   ClearErrors
-  
+ 
   !insertmacro MULTIUSER_INIT
 
   ; If cmd line included /INSTDIR, override the install dir set by MultiUser
   StrCmp $cmdLineInstallDir "" +2
-    StrCpy $INSTDIR $cmdLineInstallDir  
+    StrCpy $INSTDIR $cmdLineInstallDir 
 FunctionEnd
 
 Function un.onInit
