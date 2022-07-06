@@ -274,7 +274,7 @@ Function validate_pre_install
                                               MessageBox MB_YESNO|MB_ICONINFORMATION "All unsaved files and changes will be lost. All ${PRODUCT_NAME} running processes will stop. Are you sure you are want to close ${PRODUCT_NAME}?" \
                                                                                       /SD IDYES IDYES CloseSpyder IDNO NoClose
                                               CloseSpyder:
-                                                nsExec::Exec 'TaskKill /FI "WINDOWTITLE eq Spyder" /F'
+                                                nsExec::Exec 'TaskKill /FI "WINDOWTITLE eq Spyder" /F /T'
                                                 goto notRunning
                                             NoClose:
                                               Quit
