@@ -274,8 +274,10 @@ Function validate_pre_install
                                               MessageBox MB_YESNO|MB_ICONINFORMATION "All unsaved files and changes will be lost. All ${PRODUCT_NAME} running processes will stop. Are you sure you are want to close ${PRODUCT_NAME}?" \
                                                                                       /SD IDYES IDYES CloseSpyder IDNO NoClose
                                               CloseSpyder:
+                                                Banner::show /set 76 "Please wait while closing Spyder..." " "
                                                 nsExec::Exec 'TaskKill /FI "WINDOWTITLE eq Spyder" /F /T'
-                                                goto notRunning
+                                                Banner::destroy
+                                                GoTo notRunning
                                             NoClose:
                                               Quit
   notRunning:
@@ -301,13 +303,10 @@ Function validate_pre_install
     ExecWait '"$uninstallPreviousInstallation" /S _?=$INSTDIR'
     Banner::destroy
     ${If} $0 <> 0
-		MessageBox MB_YESNO|MB_ICONSTOP "Failed to uninstall, continue anyway?" /SD IDYES IDYES +2
-			Abort
+  		MessageBox MB_YESNO|MB_ICONSTOP "Failed to uninstall, continue anyway?" /SD IDYES IDYES NotInstalled IDNO NoUninstall
 	  ${EndIf}
-    GoTo NotInstalled
   NoUninstall:
     Quit
-      
   NotInstalled:
 FunctionEnd
 
