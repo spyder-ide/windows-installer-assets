@@ -29,6 +29,7 @@ SetCompressor lzma
 !include FileFunc.nsh
 !include 'LogicLib.nsh'
 
+
 [% block modernui %]
 ; Modern UI installer stuff
 !include "MUI2.nsh"
@@ -46,6 +47,9 @@ SetCompressor lzma
 !insertmacro MULTIUSER_PAGE_INSTALLMODE
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
+!define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN_TEXT "Start Spyder"
+!define MUI_FINISHPAGE_RUN_FUNCTION "LaunchLink"
 !insertmacro MUI_PAGE_FINISH
 [% endblock ui_pages %]
 !insertmacro MUI_LANGUAGE "English"
@@ -259,7 +263,23 @@ FunctionEnd
 !macroend
 !define TrimQuotes `!insertmacro _TrimQuotes`
 
+
 Function validate_pre_install
+
+  FindWindow $0 "" "${PRODUCT_NAME}"
+  IntCmp $0 0 notRunning
+    MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is running. You will need to close it first to proceed. Do you want to close ${PRODUCT_NAME} now?" \
+                                            /SD IDYES IDYES Confirm IDNO NoClose
+                                            Confirm:
+                                              MessageBox MB_YESNO|MB_ICONINFORMATION "All unsaved files and changes will be lost. All ${PRODUCT_NAME} running processes will stop. Are you sure you are want to close ${PRODUCT_NAME}?" \
+                                                                                      /SD IDYES IDYES CloseSpyder IDNO NoClose
+                                              CloseSpyder:
+                                                nsExec::Exec 'TaskKill /FI "WINDOWTITLE eq Spyder" /F'
+                                                goto notRunning
+                                            NoClose:
+                                              Quit
+  notRunning:
+
   SetRegView [[ib.py_bitness]]
   ; Check to see if already installed
   ReadRegStr $uninstallPreviousInstallation HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
@@ -275,11 +295,19 @@ Function validate_pre_install
   IfFileExists $uninstallPreviousInstallation Installed NotInstalled
   Installed:
     MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is already installed. Uninstall the existing version?" \
-                                            /SD IDYES IDYES UninstallPreviousInstallation IDNO Quit
+                                            /SD IDYES IDYES UninstallPreviousInstallation IDNO NoUninstall
   UninstallPreviousInstallation:
-    ExecWait $uninstallPreviousInstallation
-  Quit:
+    Banner::show /set 76 "Please wait while uninstalling..." " "
+    ExecWait '"$uninstallPreviousInstallation" /S _?=$INSTDIR'
+    Banner::destroy
+    ${If} $0 <> 0
+		MessageBox MB_YESNO|MB_ICONSTOP "Failed to uninstall, continue anyway?" /SD IDYES IDYES +2
+			Abort
+	  ${EndIf}
+    GoTo NotInstalled
+  NoUninstall:
     Quit
+      
   NotInstalled:
 FunctionEnd
 
@@ -304,17 +332,22 @@ Function .onInit
   IfErrors +2  ; Error means flag not found
     StrCpy $cmdLineInstallDir $1
   ClearErrors
-
+ 
   !insertmacro MULTIUSER_INIT
 
   ; If cmd line included /INSTDIR, override the install dir set by MultiUser
   StrCmp $cmdLineInstallDir "" +2
-    StrCpy $INSTDIR $cmdLineInstallDir
+    StrCpy $INSTDIR $cmdLineInstallDir 
 FunctionEnd
 
 Function un.onInit
   !insertmacro MULTIUSER_UNINIT
 FunctionEnd
+
+Function LaunchLink
+ ExecShell  "" "$SMPROGRAMS\Spyder.lnk"
+FunctionEnd
+
 
 [% if ib.py_bitness == 64 %]
 Function correct_prog_files
