@@ -308,6 +308,7 @@ Function validate_pre_install
     ${If} $0 <> 0
   		MessageBox MB_YESNO|MB_ICONSTOP "Failed to uninstall, continue anyway?" /SD IDYES IDYES NotInstalled IDNO NoUninstall
 	  ${EndIf}
+    GoTo NotInstalled
   NoUninstall:
     Quit
   NotInstalled:
