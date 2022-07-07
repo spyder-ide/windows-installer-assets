@@ -300,7 +300,10 @@ Function validate_pre_install
                                             /SD IDYES IDYES UninstallPreviousInstallation IDNO NoUninstall
   UninstallPreviousInstallation:
     Banner::show /set 76 "Please wait while uninstalling..." " "
-    ExecWait '"$uninstallPreviousInstallation" /S _?=$INSTDIR'
+    CreateDirectory $TEMP\spyder-uninstaller
+    CopyFiles /SILENT "$uninstallPreviousInstallation" $TEMP\spyder-uninstaller\uninstall.exe
+    ExecWait '"$TEMP\spyder-uninstaller\uninstall.exe" /S _?=$INSTDIR' $0
+    RMDir /r $TEMP\spyder-uninstaller
     Banner::destroy
     ${If} $0 <> 0
   		MessageBox MB_YESNO|MB_ICONSTOP "Failed to uninstall, continue anyway?" /SD IDYES IDYES NotInstalled IDNO NoUninstall
