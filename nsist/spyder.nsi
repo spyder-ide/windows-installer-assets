@@ -42,6 +42,7 @@ SetCompressor lzma
 !define MUI_PAGE_CUSTOMFUNCTION_PRE validate_pre_install
 !insertmacro MUI_PAGE_WELCOME
 [% if license_file %]
+!define MUI_PAGE_CUSTOMFUNCTION_PRE validate_updating_and_skip
 !insertmacro MUI_PAGE_LICENSE [[license_file]]
 [% endif %]
 !insertmacro MULTIUSER_PAGE_INSTALLMODE
@@ -59,8 +60,10 @@ Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 OutFile "${INSTALLER_NAME}"
 ShowInstDetails show
 
+; Variables used globally
 Var cmdLineInstallDir
 Var uninstallPreviousInstallation
+Var updatingInstallation
 
 Section -SETTINGS
   SetOutPath "$INSTDIR"
@@ -268,14 +271,17 @@ Function validate_pre_install
 
   FindWindow $0 "" "${PRODUCT_NAME}"
   IntCmp $0 0 notRunning
-    MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is running. You will need to close it first to proceed. Do you want to close ${PRODUCT_NAME} now?" \
+    MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is running. It is necessary to close it before installing a new version. Do you want to close ${PRODUCT_NAME} now?" \
                                             /SD IDYES IDYES Confirm IDNO NoClose
                                             Confirm:
-                                              MessageBox MB_YESNO|MB_ICONINFORMATION "All unsaved files and changes will be lost. All ${PRODUCT_NAME} running processes will stop. Are you sure you are want to close ${PRODUCT_NAME}?" \
+                                              MessageBox MB_YESNO|MB_ICONINFORMATION "All unsaved files and changes will be lost. In addition, any program that you are running in ${PRODUCT_NAME}'s IPython console will be stopped. \
+                                                                                      $\r$\n$\r$\nAre you sure you want to close ${PRODUCT_NAME}?" \
                                                                                       /SD IDYES IDYES CloseSpyder IDNO NoClose
                                               CloseSpyder:
-                                                nsExec::Exec 'TaskKill /FI "WINDOWTITLE eq Spyder" /F'
-                                                goto notRunning
+                                                Banner::show /set 76 "Please wait while closing ${PRODUCT_NAME}..." " "
+                                                nsExec::Exec 'TaskKill /FI "WINDOWTITLE eq Spyder" /F /T'
+                                                Banner::destroy
+                                                GoTo notRunning
                                             NoClose:
                                               Quit
   notRunning:
@@ -297,18 +303,24 @@ Function validate_pre_install
     MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is already installed. Uninstall the existing version?" \
                                             /SD IDYES IDYES UninstallPreviousInstallation IDNO NoUninstall
   UninstallPreviousInstallation:
-    Banner::show /set 76 "Please wait while uninstalling..." " "
-    ExecWait '"$uninstallPreviousInstallation" /S _?=$INSTDIR'
+    Banner::show /set 76 "Please wait while uninstalling ${PRODUCT_NAME}..." " "
+    CreateDirectory $TEMP\spyder-uninstaller
+    CopyFiles /SILENT "$uninstallPreviousInstallation" $TEMP\spyder-uninstaller\uninstall.exe
+    ExecWait '"$TEMP\spyder-uninstaller\uninstall.exe" /S _?=$INSTDIR'
+    RMDir /r $TEMP\spyder-uninstaller
     Banner::destroy
-    ${If} $0 <> 0
-		MessageBox MB_YESNO|MB_ICONSTOP "Failed to uninstall, continue anyway?" /SD IDYES IDYES +2
-			Abort
-	  ${EndIf}
+    StrCpy $updatingInstallation 1
+    Abort
     GoTo NotInstalled
   NoUninstall:
     Quit
-      
   NotInstalled:
+FunctionEnd
+
+Function validate_updating_and_skip
+  ${If} $updatingInstallation == 1
+    Abort
+  ${EndIf}
 FunctionEnd
 
 Function .onMouseOverSection
