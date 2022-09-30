@@ -18,7 +18,10 @@ SetCompressor lzma
 !endif
 
 !define MULTIUSER_EXECUTIONLEVEL Highest
-!define MULTIUSER_INSTALLMODE_DEFAULT_CURRENTUSER
+!define MULTIUSER_INSTALLMODE_DEFAULT_REGISTRY_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
+!define MULTIUSER_INSTALLMODE_DEFAULT_REGISTRY_VALUENAME "InstallLocation"
+!define MULTIUSER_INSTALLMODE_INSTDIR_REGISTRY_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
+!define MULTIUSER_INSTALLMODE_INSTDIR_REGISTRY_VALUENAME "InstallLocation"
 !define MULTIUSER_MUI
 !define MULTIUSER_INSTALLMODE_COMMANDLINE
 !define MULTIUSER_INSTALLMODE_INSTDIR "[[ib.appname]]"
@@ -27,7 +30,7 @@ SetCompressor lzma
 [% endif %]
 !include MultiUser.nsh
 !include FileFunc.nsh
-!include 'LogicLib.nsh'
+!include LogicLib.nsh
 
 
 [% block modernui %]
@@ -62,7 +65,8 @@ ShowInstDetails show
 
 ; Variables used globally
 Var cmdLineInstallDir
-Var uninstallPreviousInstallation
+Var previousInstallationUninstaller
+Var previousInstallationLocation
 Var updatingInstallation
 
 Section -SETTINGS
@@ -258,18 +262,18 @@ SectionEnd
 ; Functions
 
 Function trim_quotes
-Exch $R0
-Push $R1
+  Exch $R0
+  Push $R1
 
-  StrCpy $R1 $R0 1
-  StrCmp $R1 `"` 0 +2
-    StrCpy $R0 $R0 `` 1
-  StrCpy $R1 $R0 1 -1
-  StrCmp $R1 `"` 0 +2
-    StrCpy $R0 $R0 -1
+    StrCpy $R1 $R0 1
+    StrCmp $R1 `"` 0 +2
+      StrCpy $R0 $R0 `` 1
+    StrCpy $R1 $R0 1 -1
+    StrCmp $R1 `"` 0 +2
+      StrCpy $R0 $R0 -1
 
-Pop $R1
-Exch $R0
+  Pop $R1
+  Exch $R0
 FunctionEnd
 
 !macro _TrimQuotes Input Output
@@ -278,63 +282,6 @@ FunctionEnd
   Pop ${Output}
 !macroend
 !define TrimQuotes `!insertmacro _TrimQuotes`
-
-
-Function validate_pre_install
-
-  FindWindow $0 "" "${PRODUCT_NAME}"
-  IntCmp $0 0 notRunning
-    MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is running. It is necessary to close it before installing a new version. Do you want to close ${PRODUCT_NAME} now?" \
-                                            /SD IDYES IDYES Confirm IDNO NoClose
-                                            Confirm:
-                                              MessageBox MB_YESNO|MB_ICONINFORMATION "All unsaved files and changes will be lost. In addition, any program that you are running in ${PRODUCT_NAME}'s IPython console will be stopped. \
-                                                                                      $\r$\n$\r$\nAre you sure you want to close ${PRODUCT_NAME}?" \
-                                                                                      /SD IDYES IDYES CloseSpyder IDNO NoClose
-                                              CloseSpyder:
-                                                Banner::show /set 76 "Please wait while closing ${PRODUCT_NAME}..." " "
-                                                nsExec::Exec 'TaskKill /FI "WINDOWTITLE eq Spyder" /F /T'
-                                                Banner::destroy
-                                                GoTo notRunning
-                                            NoClose:
-                                              Quit
-  notRunning:
-
-  SetRegView [[ib.py_bitness]]
-  ; Check to see if already installed
-  ReadRegStr $uninstallPreviousInstallation HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
-                                              "UninstallString"
-  ${If} $uninstallPreviousInstallation == ""
-    ReadRegStr $uninstallPreviousInstallation HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
-                                              "UninstallString"
-  ${EndIf}
-
-  ; Remove quotes
-  ${TrimQuotes} $uninstallPreviousInstallation $uninstallPreviousInstallation
-
-  IfFileExists $uninstallPreviousInstallation Installed NotInstalled
-  Installed:
-    MessageBox MB_YESNO|MB_ICONINFORMATION "${PRODUCT_NAME} is already installed. Uninstall the existing version?" \
-                                            /SD IDYES IDYES UninstallPreviousInstallation IDNO NoUninstall
-  UninstallPreviousInstallation:
-    Banner::show /set 76 "Please wait while uninstalling ${PRODUCT_NAME}..." " "
-    CreateDirectory $TEMP\spyder-uninstaller
-    CopyFiles /SILENT "$uninstallPreviousInstallation" $TEMP\spyder-uninstaller\uninstall.exe
-    ExecWait '"$TEMP\spyder-uninstaller\uninstall.exe" /S _?=$INSTDIR'
-    RMDir /r $TEMP\spyder-uninstaller
-    Banner::destroy
-    StrCpy $updatingInstallation 1
-    Abort
-    GoTo NotInstalled
-  NoUninstall:
-    Quit
-  NotInstalled:
-FunctionEnd
-
-Function validate_updating_and_skip
-  ${If} $updatingInstallation == 1
-    Abort
-  ${EndIf}
-FunctionEnd
 
 Function .onMouseOverSection
     ; Find which section the mouse is over, and set the corresponding description.
@@ -369,11 +316,6 @@ Function un.onInit
   !insertmacro MULTIUSER_UNINIT
 FunctionEnd
 
-Function LaunchLink
- ExecShell  "" "$SMPROGRAMS\Spyder.lnk"
-FunctionEnd
-
-
 [% if ib.py_bitness == 64 %]
 Function correct_prog_files
   ; The multiuser machinery doesn't know about the different Program files
@@ -382,3 +324,76 @@ Function correct_prog_files
     StrCpy $INSTDIR "$PROGRAMFILES64\${MULTIUSER_INSTALLMODE_INSTDIR}"
 FunctionEnd
 [% endif %]
+
+Function LaunchLink
+ ExecShell  "" "$SMPROGRAMS\Spyder.lnk"
+FunctionEnd
+
+Function validate_updating_and_skip
+  ${If} $updatingInstallation == 1
+    Abort
+  ${EndIf}
+FunctionEnd
+
+Function validate_pre_install
+
+  ; Check to see if application is already installed for all the users and installation location (need for admin rights to proceed if that is the case)
+  SetRegView [[ib.py_bitness]]
+  ReadRegStr $previousInstallationLocation HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
+                                              "InstallLocation"
+  ReadRegStr $previousInstallationUninstaller HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
+                                              "UninstallString"
+  ${IfNot} $MultiUser.Privileges == "Admin"
+      ${AndIfNot} $previousInstallationUninstaller == ""
+          MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "${PRODUCT_NAME} is installed for all users and the current user doesn't have permissions to modify it.\
+                                       $\r$\n$\r$\nIf you want to modify the current installation you need to use an account with Administrator rights." \
+                                       /SD IDOK IDOK NoUninstall
+  ${EndIf}
+
+  ; Validate if application is currently running
+  FindWindow $0 "" "${PRODUCT_NAME}"
+  IntCmp $0 0 notRunning
+    MessageBox MB_YESNO|MB_ICONINFORMATION|MB_TOPMOST "${PRODUCT_NAME} is running. It is necessary to close it before installing a new version. Do you want to close ${PRODUCT_NAME} now?" \
+                                                      /SD IDYES IDYES Confirm IDNO NoClose
+          Confirm:
+            MessageBox MB_YESNO|MB_ICONINFORMATION|MB_TOPMOST "All unsaved files and changes will be lost. In addition, any program that you are running in ${PRODUCT_NAME}'s IPython console will be stopped. \
+                                                              $\r$\n$\r$\nAre you sure you want to close ${PRODUCT_NAME}?" \
+                                                              /SD IDYES IDYES CloseSpyder IDNO NoClose
+            CloseSpyder:
+              Banner::show /set 76 "Please wait while closing ${PRODUCT_NAME}..." " "
+              nsExec::Exec 'TaskKill /FI "WINDOWTITLE eq Spyder" /F /T'
+              Banner::destroy
+              GoTo notRunning
+          NoClose:
+            Quit
+  notRunning:
+  ${If} $previousInstallationUninstaller == ""
+      ReadRegStr $previousInstallationLocation HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
+                                              "InstallLocation"
+      ReadRegStr $previousInstallationUninstaller HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
+                                              "UninstallString"
+  ${EndIf}
+
+  ; Remove quotes
+  ${TrimQuotes} $previousInstallationLocation $previousInstallationLocation
+  ${TrimQuotes} $previousInstallationUninstaller $previousInstallationUninstaller
+
+  ; Validate if a previous installation actually exists and proceed with the uninstall and marking the execution as an update if needed
+  IfFileExists $previousInstallationUninstaller Installed NotInstalled
+  Installed:
+    MessageBox MB_YESNO|MB_ICONINFORMATION|MB_TOPMOST "${PRODUCT_NAME} is already installed. Uninstall the existing version?" \
+                                            /SD IDYES IDYES UninstallPreviousInstallation IDNO NoUninstall
+  UninstallPreviousInstallation:
+    Banner::show /set 76 "Please wait while uninstalling ${PRODUCT_NAME}..." " "
+    CreateDirectory $TEMP\spyder-uninstaller
+    CopyFiles /SILENT "$previousInstallationUninstaller" $TEMP\spyder-uninstaller\uninstall.exe
+    ExecWait '"$TEMP\spyder-uninstaller\uninstall.exe" /S _?=$previousInstallationLocation'
+    RMDir /r $TEMP\spyder-uninstaller
+    Banner::destroy
+    StrCpy $updatingInstallation 1
+    Abort
+    GoTo NotInstalled
+  NoUninstall:
+    Quit
+  NotInstalled:
+FunctionEnd
