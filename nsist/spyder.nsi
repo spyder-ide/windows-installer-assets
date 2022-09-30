@@ -345,8 +345,8 @@ Function validate_pre_install
                                               "UninstallString"
   ${IfNot} $MultiUser.Privileges == "Admin"
       ${AndIfNot} $previousInstallationUninstaller == ""
-          MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "${PRODUCT_NAME} is installed for all the users and the current user doesn't have permissions to modify it.\
-                                       $\r$\n$\r$\nIf you want to modify the current installation you will need to use an user account with Administrator rights." \
+          MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "${PRODUCT_NAME} is installed for all users and the current user doesn't have permissions to modify it.\
+                                       $\r$\n$\r$\nIf you want to modify the current installation you need to use an account with Administrator rights." \
                                        /SD IDOK IDOK NoUninstall
   ${EndIf}
 
