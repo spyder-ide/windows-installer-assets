@@ -326,7 +326,7 @@ FunctionEnd
 [% endif %]
 
 Function LaunchLink
- ExecShell  "" "$SMPROGRAMS\Spyder.lnk"
+ Exec '"$WINDIR\explorer.exe" "$SMPROGRAMS\Spyder.lnk"'
 FunctionEnd
 
 Function validate_updating_and_skip
